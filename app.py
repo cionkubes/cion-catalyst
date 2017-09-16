@@ -20,6 +20,7 @@ def setup():
 
 @app.route('/<token>', methods=['POST'])
 def web_hook(token):
+    global db_host, db_port, url_token
     if not token == url_token:
         abort(404)
 
