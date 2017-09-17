@@ -20,7 +20,6 @@ def setup():
 
 @app.route('/<token>', methods=['POST'])
 def web_hook(token):
-    global db_host, db_port, url_token
     if not token == url_token:
         abort(404)
 
@@ -34,8 +33,9 @@ def web_hook(token):
         'event': 'new-image',
         'status': 'ready'
     }
-    r.connect(db_host, db_port).repl()  # TODO: unsure if closing of the connection is required
-    r.db('cion').table('tasks').insert(data).run()
+    conn = r.connect(db_host, db_port)
+    r.db('cion').table('tasks').insert(data).run(conn)
+    conn.close()
     return '{"status": "deploy added to queue"}', 201
 
 
