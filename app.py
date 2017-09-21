@@ -2,6 +2,7 @@ import os
 from flask import Flask, abort
 from flask.globals import request
 import rethinkdb as r
+from logzero import logger
 
 app = Flask(__name__)
 
@@ -15,7 +16,7 @@ def setup():
     db_host = os.environ.get('DATABASE_HOST', default='cion_rdb-proxy')
     db_port = os.environ.get('DATABASE_PORT', default=28015)
     url_token = os.environ.get('URL_TOKEN', default='ab57eb4ee97e022f9327c3ecc58c64026a4ce3fb')  # TODO: docker secret
-    app.logger.info(f'Initializing catalyst with database host={db_host} and port={db_port}')
+    logger.info(f'Initializing catalyst with database host={db_host} and port={db_port}')
 
 
 @app.route('/<token>', methods=['POST'])
@@ -26,7 +27,7 @@ def web_hook(token):
     req_json = request.get_json()  # type: dict
     image = '{}:{}'.format(req_json['repository']['repo_name'], req_json['push_data']['tag'])
 
-    app.logger.info(f'Received push from docker-hub with image {image}')
+    logger.info(f'Received push from docker-hub with image {image}')
 
     data = {
         'image-name': image,
