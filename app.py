@@ -37,7 +37,7 @@ def web_hook(token):
     conn = r.connect(db_host, db_port)
     r.db('cion').table('tasks').insert(data).run(conn)
     conn.close()
-    return '{"status": "deploy added to queue"}', 201
+    return '{"status": "deploy added to queue"}', 202
 
 
 if __name__ == '__main__':
