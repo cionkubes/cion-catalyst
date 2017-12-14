@@ -1,4 +1,6 @@
 import os
+
+import re
 from flask import Flask, abort
 from flask.globals import request
 import rethinkdb as r
@@ -19,23 +21,50 @@ def setup():
     logger.info(f'Initializing catalyst with database host={db_host} and port={db_port}')
 
 
+def get_document(conn, doc_name):
+    db_res = r.db('cion').table('documents').get(doc_name).pluck('document').run(conn)
+    return db_res['document']
+
+
+def get_environment(conn, image):
+    glob = get_document(conn, 'glob')
+
+    match = re.match(glob, image)
+    tag = match.group(2)
+
+    swarm_tags = [(swarm_name, val['tag-match']) for swarm_name, val in get_document(conn, 'swarms').items()]
+
+    environment = ''
+    for env, tag_match in swarm_tags:
+        if re.match(tag_match, tag):
+            environment = env
+
+    return environment
+
+
 @app.route('/<token>', methods=['POST'])
 def web_hook(token):
     if not token == url_token:
         abort(404)
 
     req_json = request.get_json()  # type: dict
+
     image = '{}:{}'.format(req_json['repository']['repo_name'], req_json['push_data']['tag'])
 
     logger.info(f'Received push from docker-hub with image {image}')
+    conn = r.connect(db_host, db_port)
 
+    # insert data
     data = {
         'image-name': image,
         'event': 'new-image',
-        'status': 'ready'
+        'status': 'ready',
+        'environment': get_environment(conn, image),
+        'time': r.now().to_epoch_time()
     }
-    conn = r.connect(db_host, db_port)
+
     r.db('cion').table('tasks').insert(data).run(conn)
+
     conn.close()
     return '{"status": "deploy added to queue"}', 202
 
