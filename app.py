@@ -1,6 +1,5 @@
 import os
 
-import re
 from flask import Flask, abort
 from flask.globals import request
 import rethinkdb as r
@@ -26,22 +25,6 @@ def get_document(conn, doc_name):
     return db_res['document']
 
 
-def get_environment(conn, image):
-    glob = get_document(conn, 'glob')
-
-    match = re.match(glob, image)
-    tag = match.group(2)
-
-    swarm_tags = [(swarm_name, val['tag-match']) for swarm_name, val in get_document(conn, 'swarms').items()]
-
-    environment = ''
-    for env, tag_match in swarm_tags:
-        if re.match(tag_match, tag):
-            environment = env
-
-    return environment
-
-
 @app.route('/<token>', methods=['POST'])
 def web_hook(token):
     if not token == url_token:
@@ -59,7 +42,6 @@ def web_hook(token):
         'image-name': image,
         'event': 'new-image',
         'status': 'ready',
-        'environment': get_environment(conn, image),
         'time': r.now().to_epoch_time()
     }
 
