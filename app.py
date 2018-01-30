@@ -25,7 +25,7 @@ def get_document(conn, doc_name):
     return db_res['document']
 
 
-@app.route('/<token>', methods=['POST'])
+@app.route('/dockerhub/<token>', methods=['POST'])
 def web_hook(token):
     if not token == url_token:
         abort(404)
@@ -50,6 +50,35 @@ def web_hook(token):
     conn.close()
     return '{"status": "deploy added to queue"}', 202
 
+
+@app.route('/event/notification/<token>', methods=['POST'])
+def web_hook_notification(token):
+    if not token == url_token:
+        abort(404)
+
+    req_json = request.get_json() # type: dict
+
+    for event in req_json['events']:
+        if 'push' == event['action']:
+            image = '{}:{}'.format(event['target']['repository'], event['target']['tag'])
+
+            logger.info(f'Received push from registry with image {image}')
+            conn = r.connect(db_host, db_port)
+
+            # insert data
+            data = {
+                'image-name': image,
+                'event': 'new-image',
+                'status': 'ready',
+                'time': r.now().to_epoch_time()
+            }
+
+            r.db('cion').table('tasks').insert(data).run(conn)
+            conn.close()
+        else:
+            continue
+
+    return '{"status": "deploy added to queue"}', 202
 
 if __name__ == '__main__':
     setup()
