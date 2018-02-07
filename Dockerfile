@@ -1,5 +1,10 @@
 FROM python:3.6-alpine
-ADD . /code
-WORKDIR /code
+
+WORKDIR /opt/catalyst
+
+COPY requirements.txt .
 RUN pip install -r requirements.txt
-CMD ["python", "app.py"]
+
+COPY src .
+
+CMD ["python", "atalyst.py"]
