@@ -31,8 +31,10 @@ def web_hook(token):
         abort(404)
 
     req_json = request.get_json()  # type: dict
-
-    image = '{}:{}'.format(req_json['repository']['repo_name'], req_json['push_data']['tag'])
+    try:
+        image = '{}:{}'.format(req_json['repository']['repo_name'], req_json['push_data']['tag'])
+    except KeyError:
+        return '{"Status": "invalid body of request"}', 422
 
     logger.info(f'Received push from docker-hub with image {image}')
     conn = r.connect(db_host, db_port)
@@ -60,7 +62,10 @@ def web_hook_notification(token):
 
     for event in req_json['events']:
         if 'push' == event['action']:
-            image = '{}:{}'.format(event['target']['repository'], event['target']['tag'])
+            try:
+                image = '{}:{}'.format(event['target']['repository'], event['target']['tag'])
+            except KeyError:
+                return '{"Status": "invalid body of request"}', 422
 
             logger.info(f'Received push from registry with image {image}')
             conn = r.connect(db_host, db_port)
@@ -75,10 +80,11 @@ def web_hook_notification(token):
 
             r.db('cion').table('tasks').insert(data).run(conn)
             conn.close()
+            return '{"status": "deploy added to queue"}', 202
         else:
-            continue
+            return '{"status": "Something went wrong"}', 422
 
-    return '{"status": "deploy added to queue"}', 202
+
 
 if __name__ == '__main__':
     setup()

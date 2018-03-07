@@ -7,4 +7,4 @@ RUN pip install -r requirements.txt
 
 COPY src .
 
-CMD ["python", "atalyst.py"]
+CMD ["python", "catalyst.py"]
