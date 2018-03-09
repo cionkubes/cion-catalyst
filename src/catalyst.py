@@ -1,8 +1,9 @@
 import os
 
+import rethinkdb as r
+from Naked.toolshed import system
 from flask import Flask, abort
 from flask.globals import request
-import rethinkdb as r
 from logzero import logger
 
 app = Flask(__name__)
@@ -12,12 +13,37 @@ db_port = None
 url_token = ''
 
 
+def get_from_file(path):
+    try:
+        with open(path, 'r') as f:
+            return f.read()
+    except IOError:
+        return None
+
+
+def get_url_token():
+    if 'URL_TOKEN' not in os.environ:
+        logger.error('Please configure URL_TOKEN as an environment variable '
+                     'on this service')
+        system.exit_fail()
+
+    token_env = os.environ['URL_TOKEN']
+
+    if 'file::' in token_env:
+        return get_from_file(token_env[len('file::'):])
+    elif 'secret::' in token_env:
+        return get_from_file(f'/run/secrets/{token_env[len("secret::"):]}')
+    else:
+        return token_env
+
+
 def setup():
     global db_host, db_port, url_token
     db_host = os.environ.get('DATABASE_HOST', default='cion_rdb-proxy')
     db_port = os.environ.get('DATABASE_PORT', default=28015)
-    url_token = os.environ.get('URL_TOKEN', default='ab57eb4ee97e022f9327c3ecc58c64026a4ce3fb')  # TODO: docker secret
-    logger.info(f'Initializing catalyst with database host={db_host} and port={db_port}')
+    url_token = get_url_token()
+    logger.info(f'Initializing catalyst with database host={db_host} '
+                f'and port={db_port}')
 
 
 def get_document(conn, doc_name):
@@ -32,7 +58,8 @@ def web_hook(token):
 
     req_json = request.get_json()  # type: dict
 
-    image = '{}:{}'.format(req_json['repository']['repo_name'], req_json['push_data']['tag'])
+    image = f'{req_json["repository"]["repo_name"]}:' \
+            f'{req_json["push_data"]["tag"]}'
 
     logger.info(f'Received push from docker-hub with image {image}')
     conn = r.connect(db_host, db_port)
@@ -51,7 +78,7 @@ def web_hook(token):
     return '{"status": "deploy added to queue"}', 202
 
 
-@app.route('/event/notification/<token>', methods=['POST'])
+@app.route('/registry/<token>', methods=['POST'])
 def web_hook_notification(token):
     if not token == url_token:
         abort(404)
@@ -79,6 +106,7 @@ def web_hook_notification(token):
             continue
 
     return '{"status": "deploy added to queue"}', 202
+
 
 if __name__ == '__main__':
     setup()
