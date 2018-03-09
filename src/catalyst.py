@@ -1,7 +1,7 @@
 import os
+import sys
 
 import rethinkdb as r
-from Naked.toolshed import system
 from flask import Flask, abort
 from flask.globals import request
 from logzero import logger
@@ -25,7 +25,7 @@ def get_url_token():
     if 'URL_TOKEN' not in os.environ:
         logger.error('Please configure URL_TOKEN as an environment variable '
                      'on this service')
-        system.exit_fail()
+        sys.exit(1)
 
     token_env = os.environ['URL_TOKEN']
 
@@ -47,7 +47,8 @@ def setup():
 
 
 def get_document(conn, doc_name):
-    db_res = r.db('cion').table('documents').get(doc_name).pluck('document').run(conn)
+    db_res = r.db('cion').table('documents').get(doc_name).pluck('document') \
+        .run(conn)
     return db_res['document']
 
 
@@ -86,14 +87,15 @@ def web_hook_notification(token):
     if not token == url_token:
         abort(404)
 
-    req_json = request.get_json() # type: dict
+    req_json = request.get_json()  # type: dict
 
     for event in req_json['events']:
         if 'push' == event['action']:
             try:
-                image = '{}:{}'.format(event['target']['repository'], event['target']['tag'])
+                image = f"{event['target']['repository']}:" \
+                        f"{event['target']['tag']}"
             except KeyError:
-                return '{"Status": "invalid body of request"}', 422
+                return '{"Status": "invalid request body"}', 422
 
             logger.info(f'Received push from registry with image {image}')
             conn = r.connect(db_host, db_port)
@@ -111,8 +113,6 @@ def web_hook_notification(token):
             return '{"status": "deploy added to queue"}', 202
         else:
             return '{"status": "Something went wrong"}', 422
-
-
 
 
 if __name__ == '__main__':
