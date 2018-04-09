@@ -1,3 +1,6 @@
+#https://github.com/yobasystems/alpine-caddy/blob/master/alpine-caddy/Dockerfile
+#Parts of our Dockerfile are borrowed from alpine-caddy
+
 FROM python:3.6-alpine
 
 ARG plugins=http.git
@@ -23,6 +26,7 @@ RUN pip install -r requirements.txt --src /lib
 
 COPY src .
 COPY wrapper_script.sh wrapper_script.sh
+
 RUN dos2unix wrapper_script.sh && chmod +x wrapper_script.sh
 
 CMD ./wrapper_script.sh

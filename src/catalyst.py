@@ -1,16 +1,26 @@
-import os
-import sys
+import asyncio
 
 import rethinkdb as r
-from flask import Flask, abort
-from flask.globals import request
+from aiohttp import web
+from async_rethink import connection
 from logzero import logger
 
-app = Flask(__name__)
+r.set_loop_type('asyncio')
+
+conn = None
 
 db_host = None
 db_port = None
 url_token = ''
+
+app = web.Application()
+
+def init():
+    global conn
+    db_host = os.environ['DATABASE_HOST']
+    db_port = os.environ['DATABASE_PORT']
+
+    conn = asyncio.get_event_loop().run_until_complete(connection(db_host, db_port))
 
 
 def get_from_file(path):
@@ -42,6 +52,7 @@ def setup():
     db_host = os.environ.get('DATABASE_HOST', default='cion_rdb-proxy')
     db_port = os.environ.get('DATABASE_PORT', default=28015)
     url_token = get_url_token()
+    print(url_token)
     logger.info(f'Initializing catalyst with database host={db_host} '
                 f'and port={db_port}')
 
@@ -52,21 +63,23 @@ def get_document(conn, doc_name):
     return db_res['document']
 
 
-@app.route('/dockerhub/<token>', methods=['POST'])
-def web_hook(token):
-    if not token == url_token:
-        abort(404)
+async def web_hook(request):
+    if not request.match_info['token'] == url_token:
+        return web.Response(status=404,
+                            text='{"error": "Not found."}',
+                            content_type='application/json')
 
-    req_json = request.get_json()  # type: dict
+    req_json = await request.json()  # type: dict
 
     try:
         image = f'{req_json["repository"]["repo_name"]}:' \
                 f'{req_json["push_data"]["tag"]}'
     except KeyError:
-        return '{"Status": "invalid request body"}', 422
+        return web.Response(status=422,
+                            text='{"error: invalid request body',
+                            content_type='application/json')
 
     logger.info(f'Received push from docker-hub with image {image}')
-    conn = r.connect(db_host, db_port)
 
     # insert data
     data = {
@@ -76,29 +89,35 @@ def web_hook(token):
         'time': r.now().to_epoch_time()
     }
 
-    r.db('cion').table('tasks').insert(data).run(conn)
+    await conn.run(
+        conn.db().table('tasks').insert(data)
+    )
 
-    conn.close()
-    return '{"status": "deploy added to queue"}', 202
+    return web.Response(status=202,
+                        text='{"status": "deploy added to queue"}',
+                        content_type='application/json')
 
 
-@app.route('/registry/<token>', methods=['POST'])
-def web_hook_notification(token):
-    if not token == url_token:
-        abort(404)
+async def web_hook_notification(request):
+    if not request.match_info['token'] == url_token:
+        return web.Response(status=404,
+                            text='{"error": "Not found"}',
+                            content_type='application/json')
 
-    req_json = request.get_json()  # type: dict
+    req_json = await request.json()  # type: dict
 
     for event in req_json['events']:
+        print(event['action'])
         if 'push' == event['action']:
             try:
                 image = f"{event['target']['repository']}:" \
                         f"{event['target']['tag']}"
             except KeyError:
-                return '{"Status": "invalid request body"}', 422
+                return web.Response(status=422,
+                                    text='{"error: invalid request body',
+                                    content_type='application/json')
 
             logger.info(f'Received push from registry with image {image}')
-            conn = r.connect(db_host, db_port)
 
             # insert data
             data = {
@@ -108,13 +127,26 @@ def web_hook_notification(token):
                 'time': r.now().to_epoch_time()
             }
 
-            r.db('cion').table('tasks').insert(data).run(conn)
-            conn.close()
-            return '{"status": "deploy added to queue"}', 202
+            await conn.run(
+                conn.db().table('tasks').insert(data)
+            )
+
+            return web.Response(status=202,
+                                text='{"status": "deploy added to queue"}',
+                                content_type='application/json')
         else:
-            return '{"status": "Something went wrong"}', 422
+            return web.Response(status=422,
+                                text='{"status": "Something went wrong"}',
+                                content_type='application/json')
+
 
 
 if __name__ == '__main__':
+    import sys
+    import os
     setup()
-    app.run(host='localhost', port=8080, debug=True)
+    init()
+    app.router.add_post('/dockerhub/{token}', web_hook)
+    app.router.add_post('/registry/{token}', web_hook_notification)
+
+    web.run_app(app, host='0.0.0.0', port=8080)

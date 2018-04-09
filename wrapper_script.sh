@@ -1,6 +1,5 @@
 #!/bin/sh
 
-# Start the first process
 python catalyst.py &
 status=$?
 if [ $status -ne 0 ]; then
@@ -15,12 +14,6 @@ if [ $status -ne 0 ]; then
   echo "Failed to start caddy: $status"
   exit $status
 fi
-
-# Naive check runs checks once a minute to see if either of the processes exited.
-# This illustrates part of the heavy lifting you need to do if you want to run
-# more than one service in a container. The container exits with an error
-# if it detects that either of the processes has exited.
-# Otherwise it loops forever, waking up every 60 seconds
 
 while sleep 60; do
   ps aux |grep catalyst |grep -q -v grep

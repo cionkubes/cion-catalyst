@@ -1,6 +1,6 @@
 {$CADDY_HOST}
 tls {$MAIL}
 
-proxy / localhost:8080 {
+proxy / 0.0.0.0:8080 {
     transparent
 }
