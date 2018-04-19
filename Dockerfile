@@ -14,7 +14,7 @@ RUN curl --silent --show-error --fail --location --header "Accept: application/t
 
 EXPOSE 80 443 2015
 
-ADD Caddyfile /etc/Caddyfile
+COPY Caddyfile /etc/Caddyfile
 
 WORKDIR /opt/catalyst
 
@@ -22,7 +22,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt --src /lib
 
 COPY src .
-COPY wrapper_script.sh wrapper_script.sh
 RUN dos2unix wrapper_script.sh && chmod +x wrapper_script.sh
 
 CMD ./wrapper_script.sh
