@@ -1,3 +1,6 @@
+#https://github.com/yobasystems/alpine-caddy/blob/master/alpine-caddy/Dockerfile
+#Parts of our Dockerfile are borrowed from alpine-caddy
+
 FROM python:3.6-alpine
 
 ARG plugins=http.git
